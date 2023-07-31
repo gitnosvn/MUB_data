@@ -1,0 +1,152 @@
+---
+title: "M3_AG1_Grupo10"
+author: "Jorge Enrique Palacios Madalengoitia"
+date: "2023-07-31"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+library(knitr)
+library(pander)
+library(kableExtra)
+library(tidyr)
+library(stringr)
+library(dplyr)
+library(scales)
+library(ggplot2)
+library(stargazer)
+library(ggstatsplot)
+library(MASS)
+library(missForest)
+options(knitr.kable.NA = '')
+```
+
+## **M3_AG1_Países extremos en la implantación de Facebook**
+
+El objetivo de esta actividad consiste en analizar si hay países con niveles de implantación de Facebook que presenten valores extremos. Para ello, se utilizarán los datos y modelos calculados en la actividad 2. Por otro lado, se analiza el valor faltante observado y se pide proponer un valor imputado.
+
+Los datos a utilizar están en la tabla [fb_long.csv](https://raw.githubusercontent.com/griu/mbdds_fc20/master/gestion_datos/www/fb_long.csv) (ver descripcion de la actividad M3_AI5). También, se presupone que el fichero ya contiene la variable "Facebook_por_num".
+
+Las tareas que te proponemos realizar son las siguientes:
+
+1.  **Calcula la variable "Facebook_por_Internet"= "Porcentaje de usuarios de Facebook sobre el total de usuarios de internet" (para cada país y año). Presenta y comenta el summary de esta variable.**
+
+```{r}
+df <- read.csv("https://raw.githubusercontent.com/griu/mbdds_fc20/master/gestion_datos/www/fb_long.csv", header = TRUE, sep = ";", dec = ",")
+df$Facebook_por_num <- round(df$Facebook_num/df$poblacion_num * 100, 2)
+df$Facebook_por_Internet <- round((df$Facebook_num/(df$poblacion_num *df$Internet_por_num))*10000, 2)
+df <- df %>% mutate(anyo = as.character(anyo)) 
+df_na <- df
+df <- df %>% drop_na()
+df
+summary(df$Facebook_por_Internet)
+```
+
+Mínimo: El valor mínimo es 0.03. Esto representa el valor más pequeño observado en la variable.
+
+Primer cuartil (Q1): El primer cuartil, también conocido como el percentil 25, es 25.82. Esto indica que el 25% de los datos tiene un valor igual o inferior a 25.82.
+
+Mediana: La mediana, también conocida como el percentil 50, es 55.19. Esto indica que el 50% de los datos tiene un valor igual o inferior a 55.19.
+
+Promedio (Media): El promedio (media) de los datos es 50.94. Esto es la suma de todos los valores dividida por la cantidad de datos. El promedio representa el valor promedio de la variable.
+
+Tercer cuartil (Q3): El tercer cuartil, también conocido como el percentil 75, es 71.19. Esto indica que el 75% de los datos tiene un valor igual o inferior a 71.19.
+
+Máximo: El valor máximo es 122.07. Esto representa el valor más grande observado en la variable.
+
+2.  **Dibuja y comenta, mediante el boxplot, si hay (o no) países outliers respecto a la variable Facebook_por_Internet.**
+
+```{r}
+ggbetweenstats(data = df, x = anyo, y = Facebook_por_Internet, outlier.tagging = TRUE, outlier.label = pais_r)
+stats <- lapply(unique(df$anyo), function (x) { round(boxplot.stats(df[df$anyo == x,]$Facebook_por_Internet)$out, 2) })
+df %>% filter((anyo=="2010" & Facebook_por_Internet %in% stats[[1]]) | (anyo=="2018" & Facebook_por_Internet %in% stats[[2]]))
+
+```
+
+Los paises outliers serian: China, Nigeria, Russian Federation, Rwanda, Uganda y Uzbekistan. Donde se puede ver reflejado que el porcentaje de usuarios de facebook con respecto al porcentaje de usuarios con acceso a internet es bajo.
+
+3.  **Ajusta, de nuevo, los modelos de la actividad 2 de Facebook_por_num sobre Internet_por_num separados por año. Dibuja el primer plot (es decir, plot(modelo,1)) del modelo de regresión de cada año. Comenta si observas países con valores outliers en 2010. ¿Y en 2018?**
+
+    -   Consejo: antes de ajustar los modelos, introduce, en el rowname del data frame, la concatenación del nombre, el país y el año.
+
+    ```{r}
+    row.names(df) <- paste(df$pais_r,df$anyo)
+    df_2010 <- df[df$anyo == "2010",]
+    df_2018 <- df[df$anyo == "2018",]
+
+    lm_2010 <- lm(Facebook_por_num ~ Internet_por_num, data = df_2010)
+    lm_2018 <- lm(Facebook_por_num ~ Internet_por_num, data = df_2018)
+
+    plot(md_2010, 1)
+    plot(md_2018, 1)
+    ```
+
+    Se puede observar valores con outliers para "Iceland 2010", "Korea, Rep. 2010", "Japan 2010", "China 2018", "Ukraine 2018" y "Russian Federation 2018".
+
+4.  **¿Cuál puede ser la causa de la presencia de estos outliers en 2010? ¿Y en 2018?**
+
+```{r}
+outliers_names <- c("Iceland 2010", "Korea, Rep. 2010", "Japan 2010", "China 2018", "Ukraine 2018", "Russian Federation 2018")
+filter(df, rownames(df) %in% outliers_names) %>% dplyr::select(pais_r, Internet_por_num, Facebook_por_num)
+```
+
+Uno de los factores para la presencia de outliers en 2010 para Japon y Korea es la tendencia de la población para usar alternativas locales a redes sociales como facebook, las cuales brindan caracteristicas que se acomodan más al usuario local. Tambien existen factores como la accesibilidad que explican los outliers para el año 2018 en China, donde plataformas como facebook tienen restricciones para su uso. De esta manera se puede explicar como es que el porcentaje elevado de usuarios con acceso a internet contrasta con el de usuarios de facebook.
+
+5.  **A partir del plot 4 y 5 del modelo, comenta si los valores de D Cook indican la presencia de outliers con un impacto relevante (D Cook \> 1), en el ajuste de la regresión.**
+
+```{r}
+plot(lm_2010, 4)
+plot(lm_2010, 5)
+plot(lm_2018, 4)
+plot(lm_2018, 5)
+```
+
+Se puede observar que el valor para la distancia de Cook en el año 2010 no supera el valor de 0.4 y en 2018 no llega ni a 0.12. Por lo cual se puede decir que un valor de Cook menor que 0.4 se considera que no tiene un impacto sustancial en el ajuste del modelo y, por lo tanto, no se considera una observación influyente o atípica.
+
+6.  **Ajusta, ahora, los mismos modelos que en el punto 3, utilizando la versión robusta rlm de la librería MASS (algoritmo de los M-Estimadores). Presenta la comparación de los modelos lm y rlm mediante la función stargazer y comenta si observas cambios relevantes en los coeficientes del modelo respecto al modelo lm (algoritmo de mínimos cuadrados).**
+
+```{r}
+rlm_2010 <- rlm( Facebook_por_num ~ Internet_por_num, data=df_2010)
+rlm_2018 <- rlm( Facebook_por_num ~ Internet_por_num, data=df_2018)
+
+stargazer(lm_2010, rlm_2010, lm_2018, rlm_2018, type = "text", column.labels = c("Modelo lm 2010", "Modelo rlm 2010", "Modelo lm 2018", "Modelo rlm 2018"))
+```
+
+Se puede observar un decrecimento del RSE cuando se usa RLM en contraste con el uso de LM. Cuando el RSE disminuye, significa que los residuos tienden a ser más pequeños, lo que implica que el modelo está siendo capaz de explicar una mayor proporción de la variabilidad presente en los datos. En otras palabras, el modelo ajustado está haciendo predicciones más precisas y cercanas a los valores reales observados.
+
+7.  **Propón un valor imputado para el missing observado en Taiwán en la variable Internet_por_num a partir de los modelos analizados u otro modelo nuevo ajustado a tal efecto.**
+
+```{r}
+df_numeric <- df_na %>% dplyr::select(Internet_por_num, Facebook_por_num, Facebook_por_Internet, poblacion_num)
+
+miss_forest_imputed <- data.frame(
+  original = df_numeric$Internet_por_num,
+  imputed = missForest(df_numeric)$ximp$Internet_por_num
+)
+
+miss_forest_imputed[is.na(miss_forest_imputed$original),] #Taiwan
+
+h3 <- ggplot(miss_forest_imputed, aes(x = original)) +
+  geom_histogram(fill = "#1543ad", color = "#000000", position = "identity") +
+  ggtitle("Original distribution") +
+  theme_classic()
+h4 <- ggplot(miss_forest_imputed, aes(x = imputed)) +
+  geom_histogram(fill = "#ad8415", color = "#000000", position = "identity") +
+  ggtitle("MissForest distribution") +
+  theme_classic()
+h3
+h4
+```
+
+8.  **Explica de qué forma puede ayudar el uso del Bootstrap (muestreo aleatorio simple con reemplazo) al proceso de imputación de valores faltantes como el que has propuesto en el punto anterior.**
+
+Miss Forest es un método de imputación avanzado basado en la técnica de bosques aleatorios (random forests). Este método utiliza bosques aleatorios para predecir los valores faltantes en un conjunto de datos utilizando información de las variables disponibles. Los bosques aleatorios son un conjunto de árboles de decisión construidos en muestras de datos seleccionadas al azar, lo que los hace una técnica robusta y precisa para la imputación. El uso del Bootstrap en Miss Forest puede aportar los siguientes beneficios:
+
+**Aumento de la robustez**: Al construir múltiples árboles mediante el Bootstrap, Miss Forest reduce la sensibilidad a variaciones en los datos. Esto hace que la técnica sea más robusta frente a datos atípicos o valores ruidosos, lo que ayuda a generar imputaciones más precisas y estables.
+
+**Mayor precisión**: El Bootstrap permite que cada árbol se ajuste a diferentes subconjuntos de datos, lo que aumenta la diversidad de los árboles y mejora la precisión de las predicciones. La combinación de múltiples árboles de decisión ayuda a obtener una imputación más precisa y generalizada.
+
+**Estimación de incertidumbre**: A través del Bootstrap, Miss Forest puede estimar la incertidumbre asociada con cada imputación. Esto proporciona una medida de la confianza en la imputación y permite tener en cuenta la variabilidad en los datos.
+
+**Manejo de muestras desbalanceadas**: En conjuntos de datos con muestras desbalanceadas (por ejemplo, datos con muchos valores faltantes en algunas variables), el Bootstrap permite una mejor adaptación a la distribución de los datos y evita sesgos en la imputación.
