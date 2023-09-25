@@ -1,0 +1,187 @@
+---
+title: "M4_AG1_Grupo10"
+author: "Grupo10"
+date: "2023-09-10"
+output:
+  html_document:
+    df_print: paged
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+
+```{r setup, include=FALSE}
+library(zoo)
+library(factoextra)
+library(ggplot2)
+library(caret)
+library(NbClust)
+library(dplyr)
+library(psych)
+library(tidyr)
+```
+
+# **Descripción de la tarea**
+
+Para este ejercicio, nos enfocaremos en los negocios que peor lo están pasando con esta crisis, los pequeños negocios.
+Las pequeñas empresas representan el 99% de todas las empresas en Estados Unidos y casi el 50% del empleo, así es que son un motor indispensable para el desarrollo económico.\
+Todos los años, la Administración de Pequeñas Empresas de EE.UU.
+(SBA) publica un informe anual de la actividad de las pequeñas empresas en cada estado.
+Para este ejercicio, utilizaremos parte de los datos publicados por este organismo público e intentaremos obtener alguna conclusión mediante el Clustering.\
+
+\
+Así pues, lo primero que haremos será cargar el dataset en R.\
+
+\
+**Preparación del dataset**\
+Tal y como podrás comprobar, el dataset tiene una dimensión de 51 observaciones (correspondientes a cada uno de los estados federales de USA) y 16 variables (correspondientes a datos económicos relativos a pequeños negocios).
+Si necesitas más información acerca de qué significa cada variable, podrás encontrarla en el diccionario de datos.\
+Tal y como podrás comprobar, existen ciertas variables en las cuales hay asteriscos.
+Estos representan valores nulos (NA), por tanto, hay que hacer un tratamiento de estas variables para poder aplicar el clustering.
+
+```{r,warning=FALSE,message=FALSE}
+df<- read.csv("Data/4.4_Cluster_ejercicio.csv", header = TRUE, sep = ",", dec = ".")
+head(df)
+```
+
+**Ejercicio 1**: reemplaza los valores nulos (asteriscos) por la mediana y transforma las variables tratadas a tipo numérico.
+Una vez realizada la imputación de los valores nulos, es necesario que observes el rango de las variables que vas a utilizar para el clustering y que valores si es necesario transformarlas o no.
+
+```{r}
+df[df == "*"] <- NA
+numeric_cols <- colnames(df[,-1])
+df[, numeric_cols] <- lapply(df[, numeric_cols], as.numeric)
+df[, numeric_cols] <- na.aggregate(df[, numeric_cols], FUN = median)
+
+summary(df)
+```
+
+Se puede observar que existe columnas con valores menor a 1, los cuales corresponden a porcentajes por lo que sus escalas son cercanas.
+También podemos observar que existen columnas con valores referidas a monto de salarios donde se podría aplicar una transformación para obtener escalas similares.
+
+**Ejercicio 2**: crea un nuevo dataframe con todas las variables estandarizadas en el cuál, cada fila tenga como nombre cada uno de los estados.
+Una vez disponemos del dataframe preparado, es necesario estimar el número de clusters óptimo.
+Pese a que puede ser un proceso subjetivo, existen algunos métodos que pueden ayudarnos a tomar la decisión.
+
+```{r}
+# Estandarizar las columnas numéricas
+df_standardized <- scale(df[,-1])
+
+# Crear un nuevo DataFrame con los nombres de los estados como filas
+df_standardized <- data.frame(State = df$State, df_standardized)
+
+# Establecer los nombres de las filas como el estado
+rownames(df_standardized) <- df_standardized$State
+df_standardized <- df_standardized[, -1]
+head(df_standardized)
+```
+
+**Ejercicio 3**: elige el número de clusters óptimos mediante el método elbow.
+¿Observas algún otro número que también podría ser óptimo?
+Justifica tu respuesta.
+
+```{r,warning=FALSE,message=FALSE}
+set.seed(12345)
+fviz_nbclust(df_standardized, kmeans, method = "wss", k.max = 15,
+           diss = get_dist(df_standardized, method = "euclidean"), nstart = 50)
+fviz_nbclust(df_standardized, kmeans, method = "wss")
+
+numclus<-NbClust(df_standardized,distance="euclidean", min.nc=2, max.nc=15,method="kmeans", index="alllong")
+```
+
+Según el gráfico que obtuvimos se podría decir que el número de cluster podría ser 3, siendo 8 también un número valido, ya que es allí donde podemos observar un quiebre más llamativo.
+
+**Ejercicio 4**: elige el número de clusters óptimos mediante la representación del dendrograma.
+¿Observas algún otro número que también podría ser óptimo?
+Justifica tu respuesta.\
+Una vez tomada la decisión del número de clusters a realizar, procede a crear y visualizar los clusters en dos dimensiones.
+
+```{r,warning=FALSE,message=FALSE}
+set.seed(101)
+# Primer dendograma
+hc_euclidea_completo <- hclust(d = dist(x = df_standardized, method = "euclidean"),
+                               method = "complete")
+
+fviz_dend(x = hc_euclidea_completo, cex = 0.5, main = "Linkage completo",
+          sub = "Distancia euclídea") +
+  theme(plot.title =  element_text(hjust = 0.5, size = 15))
+
+# Dendograma con 3 clusteres
+hcut_3<-hcut(df_standardized,k=3,hc_metric = "euclidean",stand = TRUE)
+fviz_dend(hcut_3,k=3,rect=TRUE, cex=0.35, color_labels_by_k = TRUE, method="complete")
+
+
+```
+
+Seria correcto elegir a partir del primer gráfico el valor de 5 para el numero de clusters, ya que podemos observar que a esa altura se generan las fusiones mas grandes.
+Sin embargo tomando en cuenta el método elbow y el segundo gráfico obtenido el valor mas optimo seria el de 3 clusters.
+
+**Ejercicio 5**: crea el número de clusters elegido y represéntalo en dos dimensiones utilizando la función fviz_cluster.
+Una vez disponemos de la visualización en dos dimensiones de los estados que pertenecen a cada cluster creado, vamos a la parte interesante, la interpretación de estos.
+
+```{r}
+# Crear un objeto de datos extendidos que incluye la información del clustering
+cluster_data <- kmeans(x = df_standardized, centers = 3, nstart = 50)
+cluster_data
+
+# Visualizar los clusters en 2D utilizando fviz_cluster
+fviz_cluster(object = cluster_data, data = df_standardized, show.clust.cent = FALSE, ellipse.type = "euclid", cex=0.25, palette= "Set2", labelsize = 8, star.plot = TRUE, repel = TRUE) +
+  labs(title = "Clustering K-means") +
+  theme_bw() +
+  theme(legend.position = "none")
+```
+
+Se puede observar que los dos componentes utilizados representan el 40.1% de la varianza.
+
+**Ejercicio 6**: elige qué estado consideras que es más representativo de cada cluster.
+Justifica tu respuesta.
+
+Los estados que se encuentran mas cerca al centro vendrían a ser Maryland, Wisconsin y Montana para los clusters representados con los colores azul, verde y rojo respectivamente.
+Al encontrarse más cerca en sus respectivos clusters significa que son los más representativos.
+
+**Ejercicio 7**: indexa cada uno de los estados más representativos de cada cluster sobre el dataframe inicial y crea un nuevo tablón de datos en el que únicamente se encuentren estos estados.
+¿Qué variables difieren más en valor entre unos estados y otros?
+
+```{r,warning=FALSE,message=FALSE}
+
+df$cluster<-cluster_data$cluster
+rp_states<-c("Maryland", "Wisconsin", "Montana")
+df_index<-df[df$State %in% rp_states,]
+df_index
+```
+
+A excepción de la variable PercentSmallBiz donde los valores tienen una diferencia pequeña, los otros valores del resto de variable poseen una diferencia entre ellas.
+
+**Ejercicio 8**: ¿cuál de los estados seleccionados en el ejercicio anterior tiene una tasa de desempleo más elevada?
+
+```{r}
+unemployment<-max(df_index$StateUnemployRate)
+une_state<-df_index%>% group_by(State) %>%filter(StateUnemployRate==unemployment)
+une_state<-dplyr::select(une_state, cluster, State,StateUnemployRate)
+une_state
+```
+
+Los estados de Maryland y Montana son los estados con una tasa de desempleo más elevada, ambos estados con un 4%.
+
+**Ejercicio 9:** si el presidente de los Estados Unidos quisiera lanzar una campaña para aumentar el volumen de exportaciones de pequeños negocios hacia el exterior sobre los estados que menos exportan del país, y con menor valor, ¿qué cluster o clusters le propondrías?
+(Menciona únicamente el estado que consideres más representativo del cluster).
+
+```{r}
+campaign_cluster<-df%>%dplyr::select(cluster, PercentExportSmallBiz, PercentExportValue, AvgEmPerSmallBiz, StateGDPGrowth)%>% group_by(cluster)%>% summarise_all(mean)
+campaign_cluster
+```
+
+Basándonos en los resultados proporcionados, el **cluster 1** parece ser el más adecuado para la campaña, teniendo una tasa de exportación baja (**PercentExportSmallBiz** = 0.8315) y el valor de exportación más bajo (**PercentExportValue** = 0.2407).
+Se podría decir que el **cluster 3** tiene la tasa de exportación más baja, pero tiene un valor de exportación más alto en comparación con el **cluster 1**.
+
+Además, tiene un promedio razonable de empleados por pequeño negocio (**AvgEmPerSmallBiz** = 2.14) y un crecimiento modesto del PIB estatal (**StateGDPGrowth** = 0.0264).
+
+**Ejercicio 10**: ¿qué cluster representa mejor a los pequeños negocios con más ingresos?
+
+```{r}
+sb_cluster<-df%>%dplyr::select(cluster, PercentExportSmallBiz, PercentExportValue, AvgEmPerSmallBiz, MedIncomeSelfEmpCorp)%>% group_by(cluster)%>% summarise_all(mean)
+sb_cluster
+```
+
+Para determinar cuál de los clusters representa mejor a los pequeños negocios con mayores ingresos, en este caso, la variable relevante a considerar es "**MedIncomeSelfEmpCorp**", que representa el ingreso mediano de los empleados autónomos incorporados.
+Por lo tanto, **el cluster 2** representa mejor a los pequeños negocios con mayores ingresos, ya que tiene el ingreso mediano más alto en comparación con los otros dos clusters.
