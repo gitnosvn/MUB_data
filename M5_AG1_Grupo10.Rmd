@@ -1,0 +1,287 @@
+---
+title: "M5_AG1_Grupo10"
+author: "Grupo 10"
+date: "2023-10-22"
+output:
+  html_document:
+    df_print: paged
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+
+```{r setup, include=FALSE}
+library(tseries)
+library(stats)
+library(Formula)
+library(gamlss)
+library(lmtest)
+```
+
+# **Descripción de la tarea**
+
+Contamos con los datos de número de casos de "affairs" (Encuentros amorosos fuera de la pareja / infidelidades).\
+La base de datos contiene:\
+
+-   naffairs: number of affairs within last year. 
+
+-   kids: 1=have children;0= no children. 
+
+-   vryunhap: (1/0) very unhappily married. 
+
+-   unhap: (1/0) unhappily married. 
+
+-   avgmarr: (1/0) average married. 
+
+-   hapavg: (1/0) happily married. 
+
+-   vryhap: (1/0) very happily married. 
+
+-   antirel: (1/0) anti religious. 
+
+-   notrel: (1/0) not religious. 
+
+-   slghtrel: (1/0) slightly religious. 
+
+-   smerel: (1/0) somewhat religious. 
+
+-   vryrel: (1/0) very religious. 
+
+-   yrsmarr1: (1/0) \>0.75 yrs. 
+
+-   yrsmarr2: (1/0) \>1.5 yrs. 
+
+-   yrsmarr3: (1/0) \>4.0 yrs. 
+
+-   yrsmarr4: (1/0) \>7.0 yrs. 
+
+-   yrsmarr5: (1/0) \>10.0 yrs. 
+
+-   yrsmarr6: (1/0) \>15.0 yrs. 
+
+```{r,warning=FALSE,message=FALSE}
+data <- read.csv("http://www-eio.upc.edu/~pau/cms/rdata/csv/COUNT/affairs.csv")
+data <- na.omit(data)
+head(data)
+```
+
+1.   ¿Cuáles son las variables que definen la probabilidad de ser o no infiel? 
+
+    ```{r message=FALSE, warning=FALSE}
+    # Definimos una variable unfaithful
+    data$unfaithful <- ifelse(data$naffairs>0, 1, 0)
+
+    # Analizamos el modelo en base a esta nueva variable
+    modelo_unfaithful <- glm("unfaithful ~ kids + vryunhap + unhap + avgmarr + hapavg + vryhap + antirel + notrel + slghtrel + smerel + vryrel + yrsmarr1 + yrsmarr2 + yrsmarr3 + yrsmarr4 + yrsmarr5 + yrsmarr6", data=data, family=binomial(link="probit"))
+
+    pander::pander(summary(modelo_unfaithful))
+
+    ```
+
+    Según los resultados obtenidos, podemos determinar lo siguiente:
+
+    **unhap** y **vryunhap**: Tienen coeficientes positivos y significativos, lo que indica que la infelicidad en el matrimonio aumenta la probabilidad de ser infiel.
+
+    **antirel**: Tiene un coeficiente positivo y significativo, lo que sugiere que ser menos religioso está asociado con una mayor probabilidad de ser infiel.
+
+    **avgmarr**: Tiene un coeficientes positivo y significativo, lo que indica que esta caracteristica también pueden aumentar la probabilidad de ser infiel.
+
+2.  Realizad un modelo de conteos de infidelidades.
+    ¿Son las mismas variables las que afectan respecto al modelo anterior? 
+
+    ```{r message=FALSE, warning=FALSE}
+    # Definir el modelo de regresión de Poisson
+    model <- glm("naffairs ~ kids + vryunhap + unhap + avgmarr + hapavg + vryhap + antirel + notrel + slghtrel + smerel + vryrel + yrsmarr1 + yrsmarr2 + yrsmarr3 + yrsmarr4 + yrsmarr5 + yrsmarr6", data = data, family = "poisson")
+
+    # Imprimir los resultados del modelo
+    summary(model)
+    ```
+
+    Los resultados indican que variables como el estado marital, la satisfacción en el matrimonio (vryunhap, unhap, avgmarr, hapavg), la presencia de hijos (kids), las creencias religiosas (antirel, notrel, slghtrel) y la duración del matrimonio (yrsmarr1, yrsmarr2, yrsmarr3) tienen un impacto significativo en la predicción del número de infidelidades.
+    Las variables smerel, yrsmarr4, yrsmarr5 pueden no ser tan relevantes en este modelo.
+
+3.  Argumentad la razón por la que no podemos incluir todas las variables yrsmarr dentro del modelo. 
+
+    En este caso, todas las variables yrsmarr representan la duración del matrimonio en diferentes intervalos de tiempo, y, por lo tanto, están perfectamente correlacionadas.
+    Lo qye significa que, si incluyéramos todas estas variables en el modelo, no podríamos determinar coeficientes únicos para cada una de ellas, ya que proporcionan la misma información en términos de la duración del matrimonio.
+
+4.  Calculad la frecuencia de infidelidades de una persona con más de 10 años de matrimonio, no-religioso, sin hijos.
+    Sin saber el grado de satisfacción con el matrimonio. 
+
+    En una regresión de Poisson, el modelo se ve de la siguiente manera:
+
+    ## ln(μ)=β0​+β1​x1​+β2​x2​+...+βk​xk​​
+
+    Donde:
+
+    -   ln(μ) es el logaritmo natural del valor esperado (media) de la variable de respuesta (μ).
+
+    -   β0​,β1​,β2​,...,βk​ son los coeficientes de regresión.
+
+    -   x1​,x2​,...,xk​ son las variables predictoras.
+
+    Para obtener el valor esperado (μ) de la variable de respuesta, despejamos μ en la ecuación y aplicamos la función exponencial a ambos lados para obtener:
+
+    ### μ=exp(β0​+β1​x1​+β2​x2​+...+βk​xk​)
+
+    Por lo tanto, para calcular el valor esperado (media) de la variable de respuesta, que en este caso es el número esperado de infidelidades, dado el modelo de regresión de Poisson y los valores de las variables predictoras.
+
+    ```{r message=FALSE, warning=FALSE}
+    # Modelo
+    model <- glm("naffairs ~ kids + yrsmarr5 + notrel", data = data, family = "poisson")
+
+    # Coeficientes del modelo de regresión de Poisson
+    intercept <- -model$coefficients["(Intercept)"]
+    intercept
+    yrsmarr5_coef <- model$coefficients["yrsmarr5"]
+    notrel_coef <- model$coefficients["notrel"]
+    kids_coef <- model$coefficients["kids"]
+
+    # Valores de las variables para el caso específico
+    yrsmarr5_value <- 1  # Más de 10 años de matrimonio
+    notrel_value <- 1    # No religioso
+    kids_value <- 0      # Sin hijos
+
+    # Calcular el número esperado de infidelidades
+    expected_infidelity <- exp(intercept + yrsmarr5_coef * yrsmarr5_value + notrel_coef * notrel_value + kids_coef * kids_value)
+
+    # Imprimir el resultado
+    cat("Número esperado de infidelidades:", round(expected_infidelity), "\n")
+
+
+    ```
+
+5.  ¿Podríais calcular el 95% de confianza de la estimación anterior? 
+
+    ```{r message=FALSE, warning=FALSE}
+    # Matriz de valores (Intercept, kids, notrel, yrsmarr5)
+    values <- as.matrix(c(1,0,1,1))
+
+    # Creación de base de datos
+    bbdd <- cbind(data$kids, data$notrel, data$yrsmarr5)
+    SCR <-  sum((data$naffairs-t(as.matrix(model$coefficients))%*%t(as.matrix(cbind(1,bbdd))))**2)
+
+    bbdd2 <- dplyr::select(data, naffairs, kids, notrel, yrsmarr5) 
+    bbdd2$kids <- bbdd2$kids-0
+    bbdd2$notrel <- bbdd2$notrel-1
+    bbdd2$yrsmarr5 <- bbdd2$yrsmarr5-1
+
+    # Estandar error para el intercept
+    model_t <-lm(formula = naffairs~kids+notrel+yrsmarr5, data = bbdd2)
+    standard.error <- summary(model_t)$coef[,2][1]
+
+    # Calcular los intervalos de confianza
+    lower_bound <- t(as.matrix(model$coefficients))%*%values-2*(standard.error**2+(SCR/(nrow(data)-5)))**0.5
+    upper_bound <- t(as.matrix(model$coefficients))%*%values+2*(standard.error**2+(SCR/(nrow(data)-5)))**0.5
+
+    # Imprimir el resultado
+    cat("Intervalo de Confianza del 95% para el número esperado de infidelidades:", lower_bound[1], upper_bound[1], "\n")
+
+    ```
+
+6.  Calculad, bajo qué nivel de confianza, los residuos de la distribución pueden considerarse normales. 
+
+    ```{r message=FALSE, warning=FALSE}
+    # Test de Jarque-Bera
+    jb_test <- jarque.bera.test(model$residuals)
+
+    # Imprimir el resultado
+    print(jb_test)
+
+    ```
+
+    El resultado del test de Jarque-Bera indica que los residuos del modelo no siguen una distribución normal.
+    Esto se basa en el valor p, que es extremadamente pequeño (**2.2e-16**), lo que sugiere una fuerte evidencia en contra de la hipótesis nula de que los residuos siguen una distribución normal.
+
+    Un valor p muy pequeño en una prueba de normalidad como el test de Jarque-Bera sugiere que los residuos se desvían significativamente de una distribución normal.
+    Indicando que el modelo no cumple con el supuesto de normalidad de los residuos.
+
+7.  Calculad si la combinación de Años de Matrimonio e Hijos da nueva información a nuestro modelo. 
+
+    Para este caso usaremos la función **anova (ANalysis Of VAriance),** ya que permite evaluar si la inclusión de ciertas variables en un modelo mejora significativamente su capacidad para explicar la variabilidad en los datos.
+
+    ```{r message=FALSE, warning=FALSE}
+    options(digits = 14)
+    options(width = 80)
+    options(max.print = 30)
+    options(scipen = 999)
+    # Modelo completo con ambas variables
+    model_full <- glm("naffairs ~ kids + vryunhap  + avgmarr + notrel + yrsmarr1", data = data, family = "poisson")
+
+    # Modelo sin las variables mencionadas
+    model_without_years_kids <- glm("naffairs ~ vryunhap  + avgmarr + notrel", data = data, family = "poisson")
+
+    AIC_model1 <- AIC(model_full)
+    AIC_model2 <- AIC(model_without_years_kids)
+
+    # Compare AIC values
+    if (AIC_model1 < AIC_model2) {
+      cat("El modelo full es el preferido (menos AIC):", AIC_model1, "\n")
+    } else {
+      cat("El modelo sin hijos y sin incluir años es el preferido (menos AIC):", AIC_model2, "\n")
+    }
+    ```
+
+    Hemos encontrado que el modelo full que incluye hijos y años de matrimonio viene a ser el mejor modelo.
+
+8.  Teniendo la combinación de Años de Matrimonio e Hijos metido en el modelo, ¿cuál sería el cambio en infidelidades de no tener hijos a tener hijos? 
+
+    Para determinar el cambio en la cantidad esperada de infidelidades al pasar de no tener hijos a tener hijos, utilizamos el modelo de regresión de Poisson que hemos ajustado y examinamos el coeficiente estimado asociado a la variable "Hijos".
+    En el modelo de regresión de Poisson, el coeficiente estimado para la variable "Hijos" representa el cambio en el logaritmo de la cantidad esperada de infidelidades al tener hijos en comparación con no tener hijos, manteniendo constantes todas las demás variables del modelo.
+
+    Para obtener una estimación del cambio en la cantidad esperada de infidelidades, calculamos el valor exponencial del coeficiente de "Hijos", mediante el cual obtendremos el factor por el cual la cantidad esperada de infidelidades cambia al tener hijos en comparación con no tener hijos.
+
+    ```{r message=FALSE, warning=FALSE}
+    # Modelo
+    model <- glm("naffairs ~ kids + yrsmarr5 + notrel", data = data, family = "poisson")
+
+    # Coeficientes del modelo de regresión de Poisson
+    kids_coef <- model$coefficients["kids"]
+
+    # Calcular el cambio relativo en la cantidad esperada de infidelidades
+    cambio_relativo <- exp(kids_coef)
+    cambio_relativo
+    ```
+
+    El valor calculado del cambio relativo en la cantidad esperada de infidelidades al tener hijos en comparación con no tener hijos es aproximadamente 1.843181(2 ya que no se cuentan con 1.83 infidelidades).
+    Esto significa que, según el modelo de regresión de Poisson, se espera que la cantidad esperada de infidelidades sea aproximadamente 2 veces mayor en personas sin hijos en comparación con personas que tienen hijos, manteniendo constantes las demás variables del modelo.
+
+9.  Calculad una variable que convierta las dummies de años de matrimonio en numérica.
+    Calculad también esta misma variable al cuadrado.
+    ¿En teoría hay alguna edad de matrimonio en la que cada año adicional suponga un descenso de las infidelidades?
+
+    ```{r message=FALSE, warning=FALSE}
+    # Variable numérica de años de matrimonio
+    data$yrsmarr = 0.75 * data$yrsmarr1 + 1.5 * data$yrsmarr2 + 4 * data$yrsmarr3 + 7 * data$yrsmarr4 + 10 * data$yrsmarr5 + 15 * data$yrsmarr6
+
+    # Variable al cuadrado de años de matrimonio
+    data$yrsmarr_squared = data$yrsmarr^2
+
+    # Ajustamos un modelo de regresión de Poisson con las variables significativas
+    new_model <- glm("naffairs ~ kids  + unhap + notrel + yrsmarr + yrsmarr_squared", family = "poisson", data = data)
+
+    # Resumen del modelo
+    summary(new_model)
+
+    previous_infidelities <- 0
+    inflection_point <- "unknown"
+    found <- FALSE
+
+    for(x in 1:50){
+      # Calculamos el valor lineal y la cantidad esperada de infidelidades
+      linear_value <- new_model$coefficients["(Intercept)"] + new_model$coefficients["yrsmarr"] * x + new_model$coefficients["yrsmarr_squared"] * (x^2)
+      expected_infidelities <- exp(linear_value)
+      rounded_value <- round(expected_infidelities)
+      cat("infidelidades encontrado en el año ", x, ": ", expected_infidelities, "\n")
+      if(previous_infidelities > rounded_value & found == FALSE & previous_infidelities != 0){
+        inflection_point <- x +1
+        found <- TRUE
+      }
+      previous_infidelities <- rounded_value
+    }
+
+    cat("Descenso de infidelidades encontrado en el año ", inflection_point)
+      
+
+
+    ```
